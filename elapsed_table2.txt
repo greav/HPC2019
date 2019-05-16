@@ -1,0 +1,4 @@
+(1000,32,32)	(10,10,10)	compute_AR_coefs	116
+(1000,32,32)	(15,10,10)	compute_AR_coefs	300
+(1000,32,32)	(15,15,10)	compute_AR_coefs	998
+(1000,32,32)	(15,15,15)	compute_AR_coefs	2517
