@@ -52,7 +52,7 @@ struct Autoreg_model {
 		ACF<T> acf_model = approx_acf<T>(alpha, beta, gamm, acf_delta, acf_size);
 		end = std::chrono::steady_clock::now();
 		auto elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-		out_file << zsize << "\t" << acf_size << "\t" << "approx_acf" << "\t\t\t\t" << elapsed_time << "\n";
+		out_file << zsize << "\t" << acf_size << "\t" << "approx_acf" << "\t\t" << elapsed_time << "\n";
 
 		//{ std::ofstream out("acf"); out << acf_model; }
 		
@@ -60,7 +60,7 @@ struct Autoreg_model {
 		AR_coefs<T> ar_coefs = compute_AR_coefs(acf_model);
 		end = std::chrono::steady_clock::now();
 		elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-		out_file << zsize << "\t" << acf_size << "\t" << "compute_AR_coefs" << "\t\t" << elapsed_time << "\n";
+		out_file << zsize << "\t" << acf_size << "\t" << "compute_AR_coefs" << "\t" << elapsed_time << "\n";
 
 		start = std::chrono::steady_clock::now();
 		T var_wn = white_noise_variance(ar_coefs, acf_model);
@@ -84,7 +84,7 @@ struct Autoreg_model {
 		generate_zeta(ar_coefs, zeta2);
 		end = std::chrono::steady_clock::now();
 		elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();		
-		out_file << zsize << "\t" << acf_size << "\t" << "generate_zeta" << "\t\t\t" << elapsed_time << "\n";
+		out_file << zsize << "\t" << acf_size << "\t" << "generate_zeta" << "\t\t" << elapsed_time << "\n";
 
 		std::clog << "mean(zeta) = " << mean(zeta2) << std::endl;
 		std::clog << "variance(zeta) = " << variance(zeta2) << std::endl;
@@ -93,13 +93,13 @@ struct Autoreg_model {
 		Zeta<T> zeta = trim_zeta(zeta2, zsize);
 		end = std::chrono::steady_clock::now();
 		elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-		out_file << zsize << "\t" << acf_size << "\t" << "trim_zeta" << "\t\t\t\t" << elapsed_time << "\n";
+		out_file << zsize << "\t" << acf_size << "\t" << "trim_zeta" << "\t\t" << elapsed_time << "\n";
 
 		start = std::chrono::steady_clock::now();
 		write_zeta(zeta);
 		end = std::chrono::steady_clock::now();
 		elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-		out_file << zsize << "\t" << acf_size << "\t" << "write_zeta" << "\t\t\t\t" << elapsed_time << "\n";
+		out_file << zsize << "\t" << acf_size << "\t" << "write_zeta" << "\t\t" << elapsed_time << "\n";
 	}
 
 	/// Read AR model parameters from an input stream, generate default ACF and
