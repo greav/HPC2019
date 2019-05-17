@@ -43,7 +43,7 @@ struct Autoreg_model {
 		std::chrono::steady_clock::time_point end;
 
 		std::ofstream out_file;
- 	    out_file.open("elapsed_table2.txt", std::ios_base::app);
+ 	    out_file.open("elapsed_table3.txt", std::ios_base::app);
 
 		
 		echo_parameters();
@@ -60,7 +60,7 @@ struct Autoreg_model {
 		AR_coefs<T> ar_coefs = compute_AR_coefs(acf_model);
 		end = std::chrono::steady_clock::now();
 		elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-		out_file << zsize << "\t" << acf_size << "\t" << "compute_AR_coefs" << "\t" << elapsed_time << "\n";
+		// out_file << zsize << "\t" << acf_size << "\t" << "compute_AR_coefs" << "\t" << elapsed_time << "\n";
 
 		start = std::chrono::steady_clock::now();
 		T var_wn = white_noise_variance(ar_coefs, acf_model);
@@ -75,7 +75,7 @@ struct Autoreg_model {
 		Zeta<T> zeta2 = generate_white_noise(zsize2, var_wn);
 		end = std::chrono::steady_clock::now();
 		elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-		//out_file << zsize << "\t" << acf_size << "\t" << "generate_white_noise" << "\t" << elapsed_time << "\n";
+		out_file << zsize << "\t" << acf_size << "\t" << "generate_white_noise" << "\t" << elapsed_time << "\n";
 
 		std::clog << "mean(eps) = " << mean(zeta2) << std::endl;
 		std::clog << "variance(eps) = " << variance(zeta2) << std::endl;
