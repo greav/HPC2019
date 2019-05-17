@@ -1,0 +1,5 @@
+(1000,32,32)	(10,10,10)	generate_white_noise	117
+(1000,64,32)	(10,10,10)	generate_white_noise	153
+(1000,64,64)	(10,10,10)	generate_white_noise	255
+(1000,128,64)	(10,10,10)	generate_white_noise	438
+(1000,128,128)	(10,10,10)	generate_white_noise	858
