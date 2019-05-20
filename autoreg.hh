@@ -13,6 +13,8 @@
 #include <stdexcept>             // for runtime_error
 #include <vector>
 #include <thread>
+#include <mutex>
+#include <list>
 
 #include <blitz/array.h>         // for Array, Range, shape, any
 
@@ -153,7 +155,6 @@ namespace autoreg {
         auto cur_begin = std::begin(eps);
         int step = size(0) * size(1) * size(2) / n;
        
-        std::clog << "type: " << typeid(cur_begin).name() << std::endl;
         for (int i = 0; i < n; i++) {
             auto cur_end = std::next(cur_begin, step);
             auto cur_gen = std::bind(normal, generators[i]);
@@ -179,6 +180,121 @@ namespace autoreg {
 		return eps;
 	}
 
+	struct ZetaBlock {
+        int t_begin;
+        int x_begin;
+        int y_begin;
+
+        int t_end;
+        int x_end;
+        int y_end;
+
+        int x_id;
+        int y_id;
+        int t_id;
+    };
+
+    bool is_available(ZetaBlock &block, std::mutex &completed_blocks_mutex, 
+    				  blitz::Array<bool, 3> &completed_blocks) {
+        int t_id = block.t_id;
+        int x_id = block.x_id;
+        int y_id = block.y_id;
+
+        int t_id_prev = block.t_id - 1;
+        int x_id_prev = block.x_id - 1;
+        int y_id_prev = block.y_id - 1;
+
+        std::lock_guard <std::mutex> lock(completed_blocks_mutex);
+
+
+        if (t_id_prev >= 0 && !completed_blocks(t_id_prev, x_id, y_id)) {
+            return false;
+        }
+
+        if (x_id_prev >= 0 && !completed_blocks(t_id, x_id_prev, y_id)) {
+            return false;
+        }
+
+        if (y_id_prev >= 0 && !completed_blocks(t_id, x_id, y_id_prev)) {
+            return false;
+        }
+
+        if (t_id_prev >= 0 && x_id_prev >= 0 && !completed_blocks(t_id_prev, x_id_prev, y_id)) {
+            return false;
+        }
+
+        if (t_id_prev >= 0 && y_id_prev >= 0 && !completed_blocks(t_id_prev, x_id, y_id_prev)) {
+            return false;
+        }
+
+        if (x_id_prev >= 0 && y_id_prev >= 0 && !completed_blocks(t_id, x_id_prev, y_id_prev)) {
+            return false;
+        }
+
+        if (t_id_prev >= 0 && x_id_prev >= 0 && y_id_prev >= 0 && !completed_blocks(t_id_prev, x_id_prev, y_id_prev)) {
+            return false;
+        }
+
+        return true;
+    }
+
+
+	template <class T>
+	void generate_zeta_block(const AR_coefs<T>& phi, Zeta<T>& zeta,
+							 std::mutex &list_of_blocks_mutex, std::list<ZetaBlock> &list_of_blocks, 
+							 std::mutex &completed_blocks_mutex, blitz::Array<bool, 3> &completed_blocks){
+		const size3 fsize = phi.shape();
+		const size3 zsize = zeta.shape();
+
+		while (true) {
+			ZetaBlock block;
+
+			bool found_block;
+
+			// поиск блока для генерации поверхности
+			list_of_blocks_mutex.lock();
+	        found_block = false;
+	        for (auto current = list_of_blocks.begin(); current != list_of_blocks.end(); ++current) {
+	            if (is_available(*current, completed_blocks_mutex, completed_blocks)) {
+	                block = *current;
+	                list_of_blocks.erase(current);
+	                found_block = true;
+	                break;
+	            }
+	        }
+	        list_of_blocks_mutex.unlock();
+        	
+	        // генерация блока поверхности
+			if (!found_block)
+			{
+				std::lock_guard<std::mutex> lock(list_of_blocks_mutex);
+				if (list_of_blocks.size() == 0)
+					break;
+			} 
+			else 
+			{
+				for (int t = block.t_begin; t < block.t_end; ++t) {
+					for (int x = block.x_begin; x < block.x_end; ++x) {
+						for (int y = block.y_begin; y < block.y_end; ++y) {
+							const int m1 = std::min(t+1, fsize[0]);
+							const int m2 = std::min(x+1, fsize[1]);
+							const int m3 = std::min(y+1, fsize[2]);
+							T sum = 0;
+							for (int k=0; k<m1; k++)
+								for (int i=0; i<m2; i++)
+									for (int j=0; j<m3; j++)
+										sum += phi(k, i, j)*zeta(t-k, x-i, y-j);
+							zeta(t, x, y) += sum;
+						}
+					}
+				}
+
+				std::lock_guard <std::mutex> lock(completed_blocks_mutex);
+        		completed_blocks(block.t_id, block.x_id, block.y_id) = true;
+			}
+		}
+	}
+
 	/// Генерация отдельных частей реализации волновой поверхности.
 	template<class T>
 	void generate_zeta(const AR_coefs<T>& phi, Zeta<T>& zeta) {
@@ -187,21 +303,85 @@ namespace autoreg {
 		const int t1 = zsize[0];
 		const int x1 = zsize[1];
 		const int y1 = zsize[2];
-		for (int t=0; t<t1; t++) {
-			for (int x=0; x<x1; x++) {
-				for (int y=0; y<y1; y++) {
-					const int m1 = std::min(t+1, fsize[0]);
-					const int m2 = std::min(x+1, fsize[1]);
-					const int m3 = std::min(y+1, fsize[2]);
-					T sum = 0;
-					for (int k=0; k<m1; k++)
-						for (int i=0; i<m2; i++)
-							for (int j=0; j<m3; j++)
-								sum += phi(k, i, j)*zeta(t-k, x-i, y-j);
-					zeta(t, x, y) += sum;
-				}
-			}
+
+		int t_size = 20;
+		int x_size = 4;
+		int y_size = 4;
+
+		const int t_step = std::max(fsize[0], zsize[0]/t_size);
+		const int x_step = std::max(fsize[1], zsize[1]/x_size);
+		const int y_step = std::max(fsize[2], zsize[2]/y_size);
+
+		t_size = ceil(double(t1) / t_step);
+        x_size = ceil(double(x1) / x_step);
+        y_size = ceil(double(y1) / y_step);
+
+    	std::clog<<"Block size: "<< "("<< t_step<<", "<< x_step <<", "<<y_step << ")" << std::endl;
+		std::clog<<"Number of blocks: "<< ceil(zsize[0] * zsize[1] * zsize[2] / t_step / x_step / y_step) << std::endl;
+
+	  	blitz::Array<bool, 3> completed_blocks;
+        std::list <ZetaBlock> list_of_blocks;
+
+        std::mutex list_of_blocks_mutex;
+        std::mutex completed_blocks_mutex;
+
+        completed_blocks.resize(t_size, x_size, y_size);
+        completed_blocks(blitz::Range::all(), blitz::Range::all(), blitz::Range::all()) = false;
+
+        for (int current_t_begin = 0; current_t_begin < t1; current_t_begin += t_step) {
+    		int current_t_end;
+    		if ((current_t_begin + t_step) <= t1)
+        		current_t_end = current_t_begin + t_step;
+    		else
+        		current_t_end = t1;
+
+    		for (int current_x_begin = 0; current_x_begin < x1; current_x_begin += x_step) {
+       			int current_x_end;
+        		if ((current_x_begin + x_step) <= x1)
+            		current_x_end = current_x_begin + x_step;
+        		else
+            		current_x_end = x1;
+
+        		for (int current_y_begin = 0; current_y_begin < y1; current_y_begin += y_step) {
+            		int current_y_end;
+            		if ((current_y_begin + y_step) <= y1)
+                		current_y_end = current_y_begin + y_step;
+            		else
+                		current_y_end = y1;
+
+		            ZetaBlock block;
+		            block.t_begin = current_t_begin;
+		            block.t_end = current_t_end;
+		            block.x_begin = current_x_begin;
+		            
+		            block.x_end = current_x_end;
+		            block.y_begin = current_y_begin;
+		            block.y_end = current_y_end;
+		            
+		            block.t_id = current_t_begin / t_step;
+		            block.x_id = current_x_begin / x_step;
+		            block.y_id = current_y_begin / y_step;
+
+            		list_of_blocks.push_back(block);
+        		}
+    		}
 		}
+
+
+		int n_threads = 8;
+		std::vector<std::thread> threads;
+
+		for(int i = 0; i < n_threads; ++i){
+			std::thread current_thread(generate_zeta_block<T>, std::ref(phi), std::ref(zeta),
+									   std::ref(list_of_blocks_mutex), std::ref(list_of_blocks), 
+									   std::ref(completed_blocks_mutex), std::ref(completed_blocks));
+			threads.push_back(std::move(current_thread));
+		}
+
+		for(std::thread& cur_thread : threads){
+			cur_thread.join();
+		}
+
 	}
 
 	template<class T, int N>
