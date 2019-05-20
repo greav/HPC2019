@@ -85,6 +85,7 @@ struct Autoreg_model {
 		end = std::chrono::steady_clock::now();
 		elapsed_time = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();		
 		out_file << zsize << "\t" << acf_size << "\t" << "generate_zeta" << "\t\t" << elapsed_time << "\n";
+		std::clog << "generate_zeta time: " << elapsed_time << " milliseconds" << std::endl;		
 
 		std::clog << "mean(zeta) = " << mean(zeta2) << std::endl;
 		std::clog << "variance(zeta) = " << variance(zeta2) << std::endl;

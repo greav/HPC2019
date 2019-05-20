@@ -23,6 +23,7 @@
 #include "voodoo.hh"             // for generate_AC_matrix
 #include "parallel_mt.hh"
 
+
 /// @file
 /// File with subroutines for AR model, Yule-Walker equations
 /// and some others.
@@ -367,8 +368,9 @@ namespace autoreg {
     		}
 		}
 
-
-		int n_threads = 8;
+		int n_threads = std::max(atoi(std::getenv("OMP_NUM_THREADS")), 1);	
+		std::clog << "n_threads: " << n_threads << std::endl;
+		
 		std::vector<std::thread> threads;
 
 		for(int i = 0; i < n_threads; ++i){
